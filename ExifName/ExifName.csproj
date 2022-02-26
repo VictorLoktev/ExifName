@@ -95,8 +95,12 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="Embedded Resource\MetadataExtractor.dll" />
-    <EmbeddedResource Include="Embedded Resource\XmpCore.dll" />
+    <Content Include="..\packages\MetadataExtractor.2.7.1\lib\net45\MetadataExtractor.dll">
+      <Link>Embedded Resource\MetadataExtractor.dll</Link>
+    </Content>
+    <Content Include="..\packages\XmpCore.6.1.10.1\lib\net35\XmpCore.dll">
+      <Link>Embedded Resource\XmpCore.dll</Link>
+    </Content>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
