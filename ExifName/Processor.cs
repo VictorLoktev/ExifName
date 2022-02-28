@@ -18,6 +18,8 @@ namespace ExifName
 		const string _tmp_ = "._tmp_";
 		const string ConfigFileName = "exifname.config";
 		const string ConfigRegex = @"^\s*(?<sign>[+-])(?<time>\d\d?:\d\d?(:\d\d?(.\d+)?)?)\s*:\s*(?<camera>.+)\s*$";
+		//const string FileMaskToRenameRegex = @"^(?:(DSC|IMG|PIC|P|PA|PB|PC|Photo|Video)[_-]?\d+|(?:[0-9]|(?:-|_)[0-9])+)(?'number_in_brackets'\(\d+\))?(?'name'\s*-\s*.*|\D\D.*)?$",
+		const string FileMaskToRenameRegex = @"^(?'name'(?:\p{L}|[()_]|\d| \d|-|(<!- ))+)(?'comment'.*)$";
 
 		public struct ConfigInfo
 		{
@@ -46,7 +48,7 @@ namespace ExifName
 				{
 					srcDir = args[ 0 ];
 					// Если параметром указан файл, а не директория, то по файлу выдается вся информация из EXIF
-					if( System.IO.File.Exists( args[ 0 ] ) )
+					if( File.Exists( args[ 0 ] ) )
 					{
 						Console.WriteLine( "Полная информация о файле:" );
 						var directories = ImageMetadataReader.ReadMetadata( args[ 0 ] );
@@ -211,19 +213,16 @@ namespace ExifName
 				https://stackoverflow.com/questions/28156769/foreign-language-characters-in-regular-expression-in-c-sharp
 				*/
 
-				Regex rx = new Regex(
-					//@"^(?:(DSC|IMG|PIC|P|PA|PB|PC|Photo|Video)[_-]?\d+|(?:[0-9]|(?:-|_)[0-9])+)(?'number_in_brackets'\(\d+\))?(?'name'\s*-\s*.*|\D\D.*)?$",
-					@"^(?'name'(?:\p{L}|[()_]|\d| \d|-|(<!- ))+)(?'comment'.*)$",
-					RegexOptions.Compiled | RegexOptions.IgnoreCase );
+				Regex rx = new Regex( FileMaskToRenameRegex, RegexOptions.Compiled | RegexOptions.IgnoreCase );
 
 				string guid = Guid.NewGuid().ToString( "N" );
-				string undoFile1 = Path.Combine( System.IO.Path.GetTempPath(),
+				string undoFile1 = Path.Combine( Path.GetTempPath(),
 					$"exifname undo {DateTime.Now.ToString( "yyyy-MM-dd hh-mm-ss" )} {guid} run 1st.cmd" );
-				string undoFile2 = System.IO.Path.Combine( System.IO.Path.GetTempPath(),
+				string undoFile2 = Path.Combine( Path.GetTempPath(),
 					$"exifname undo {DateTime.Now.ToString( "yyyy-MM-dd hh-mm-ss" )} {guid} run 2nd.cmd" );
 
 				List<ExifFileInfo> FileList = new List<ExifFileInfo>();
-				string[] files = System.IO.Directory.GetFiles( srcDir, "*", System.IO.SearchOption.TopDirectoryOnly );
+				string[] files = System.IO.Directory.GetFiles( srcDir, "*", SearchOption.TopDirectoryOnly );
 				foreach( string file in files )
 				{
 					try
@@ -236,8 +235,8 @@ namespace ExifName
 
 						// Название файла
 						info.OriginalName = file;
-						info.Extention = System.IO.Path.GetExtension( info.OriginalName ).ToLower();
-						info.NameWithoutExtention = System.IO.Path.GetFileNameWithoutExtension( info.OriginalName );
+						info.Extention = Path.GetExtension( info.OriginalName ).ToLower();
+						info.NameWithoutExtention = Path.GetFileNameWithoutExtension( info.OriginalName );
 						info.NameDescription = "";
 
 						bool dateInExifFound = false;
@@ -253,7 +252,7 @@ namespace ExifName
 							info.CameraInternalSerialNumber = pic0Exif.GetString( ExifDirectoryBase.TagBodySerialNumber );
 							info.CameraOwner = pic0Exif.GetString( ExifDirectoryBase.TagCameraOwnerName );
 
-							if( pic0Exif.TryGetDateTime( ExifSubIfdDirectory.TagDateTime, out var datetime ) )
+							if( pic0Exif.TryGetDateTime( ExifIfd0Directory.TagDateTime, out var datetime ) )
 							{
 								info.PhotoDateTime = datetime;
 								dateInExifFound = true;
@@ -307,7 +306,7 @@ namespace ExifName
 							{
 								// Из времени файла в exif вычитается сдвиг зоны конфигурационного файла - это приведение к GMT,
 								// а затем добавляется смещение относительно GMT времени файла чтобы получить текущую зону дома владельца
-								System.IO.FileInfo fInfo = new System.IO.FileInfo( file );
+								FileInfo fInfo = new FileInfo( file );
 								DateTime d1 = fInfo.LastWriteTimeUtc;
 								DateTime d2 = fInfo.LastWriteTime;
 								info.PhotoDateTime +=
@@ -353,7 +352,7 @@ namespace ExifName
 										case "3gp3":// Телефон
 										case "3gp4":// Телефон типа HTC Hero
 													//currentOffset = TimeZone.CurrentTimeZone.GetUtcOffset( DateTime.Now );
-											System.IO.FileInfo fInfo = new System.IO.FileInfo( file );
+											FileInfo fInfo = new FileInfo( file );
 											DateTime d1 = fInfo.LastWriteTimeUtc;
 											DateTime d2 = fInfo.LastWriteTime;
 											currentOffset = d2.Subtract( d1 );
@@ -407,7 +406,7 @@ namespace ExifName
 							else
 							{
 								// Установить дату и время файла из Exif
-								System.IO.FileInfo fInfo = new System.IO.FileInfo( System.IO.Path.Combine( srcDir, info.OriginalName ) );
+								FileInfo fInfo = new FileInfo( Path.Combine( srcDir, info.OriginalName ) );
 								File.SetCreationTime( fInfo.FullName, info.PhotoDateTime );
 								File.SetLastWriteTime( fInfo.FullName, info.PhotoDateTime );
 								// и не переименовывать
@@ -427,7 +426,7 @@ namespace ExifName
 								info.Extention
 								);
 							info.TmpName = string.Format( "{0}" + _tmp_ + "{1}",
-								System.IO.Path.GetFileNameWithoutExtension( info.OriginalName ),
+								Path.GetFileNameWithoutExtension( info.OriginalName ),
 								info.Extention
 								);
 							FileList.Add( info );
@@ -441,7 +440,7 @@ namespace ExifName
 						if( ex.GetType() == typeof( ImageProcessingException ) )    // тип файла не поддерживается
 							continue;
 						Console.Out.WriteLine( $"\r\n\r\nУ файла `{file}'\r\nошибка:\r\n«{ex.Message}»\r\n\r\n" );
-						if( ex.GetType() == typeof( System.IO.IOException ) )    // Компонент не смог прочитать файл
+						if( ex.GetType() == typeof( IOException ) )    // Компонент не смог прочитать файл
 							Console.Out.WriteLine( $"Возможно файл битый, проверьте его содержимое!\r\n\r\n" );
 						return;
 					}
@@ -461,12 +460,12 @@ namespace ExifName
 				for( int index = 0; index < FileList.Count; index++ )
 				{
 					ExifFileInfo info = FileList[ index ];
-					string src = System.IO.Path.Combine( srcDir, info.OriginalName );
-					string dst = System.IO.Path.Combine( srcDir, info.TmpName );
+					string src = Path.Combine( srcDir, info.OriginalName );
+					string dst = Path.Combine( srcDir, info.TmpName );
 					try
 					{
 						// В undo файл в temp'е записывает командный файл обратного переименования
-						System.IO.File.AppendAllText( undoFile2, $"ren \"{dst}\" \"{System.IO.Path.GetFileName( src )}\"\r\n", Console.InputEncoding );
+						File.AppendAllText( undoFile2, $"ren \"{dst}\" \"{Path.GetFileName( src )}\"\r\n", Console.InputEncoding );
 					}
 					catch( Exception ex )
 					{
@@ -476,7 +475,7 @@ namespace ExifName
 					try
 					{
 						// Переименование файла
-						System.IO.File.Move( src, dst );
+						File.Move( src, dst );
 					}
 					catch( Exception ex )
 					{
@@ -502,17 +501,17 @@ namespace ExifName
 						fileName = info.FinalName.Replace( "{IncrementNumber3}", info.IncrementNumber.ToString( incFormat ) );
 						maxN--;
 					}
-					while( System.IO.File.Exists( System.IO.Path.Combine( srcDir, fileName ) ) && maxN > 0 );
+					while( File.Exists( Path.Combine( srcDir, fileName ) ) && maxN > 0 );
 
 					info.FinalName = fileName;
 					try
 					{
-						string src = System.IO.Path.Combine( srcDir, info.TmpName );
-						string dst = System.IO.Path.Combine( srcDir, info.FinalName );
+						string src = Path.Combine( srcDir, info.TmpName );
+						string dst = Path.Combine( srcDir, info.FinalName );
 						try
 						{
 							// В undo файл в temp'е записывает командный файл обратного переименования
-							System.IO.File.AppendAllText( undoFile1, $"ren \"{dst}\" \"{System.IO.Path.GetFileName( src )}\"\r\n", Console.InputEncoding );
+							File.AppendAllText( undoFile1, $"ren \"{dst}\" \"{Path.GetFileName( src )}\"\r\n", Console.InputEncoding );
 						}
 						catch( Exception ex )
 						{
@@ -522,7 +521,7 @@ namespace ExifName
 
 						try
 						{
-							System.IO.FileInfo fInfo = new System.IO.FileInfo( src );
+							FileInfo fInfo = new FileInfo( src );
 							fInfo.MoveTo( dst );
 							fInfo.CreationTime = info.PhotoDateTime;
 							fInfo.LastWriteTime = info.PhotoDateTime;
@@ -552,7 +551,7 @@ namespace ExifName
 			foreach( ConfigInfo inf in config )
 			{
 				if( string.IsNullOrEmpty( inf.Camera ) ||
-					( camera ?? "" ).ContainsIgnoreCase( inf.Camera ) )
+					( camera ?? "" ).Trim().ContainsIgnoreCase( inf.Camera ) )
 					return inf;
 			}
 			return null;
