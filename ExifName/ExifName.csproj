@@ -55,6 +55,7 @@
   <ItemGroup>
     <Reference Include="MetadataExtractor, Version=2.7.1.0, Culture=neutral, PublicKeyToken=b66b5ccaf776c301, processorArchitecture=MSIL">
       <HintPath>..\packages\MetadataExtractor.2.7.1\lib\net45\MetadataExtractor.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.configuration" />
@@ -66,6 +67,7 @@
     <Reference Include="System.Xml.Linq" />
     <Reference Include="XmpCore, Version=6.1.10.1, Culture=neutral, PublicKeyToken=961f4f366277b80e, processorArchitecture=MSIL">
       <HintPath>..\packages\XmpCore.6.1.10.1\lib\net35\XmpCore.dll</HintPath>
+      <Private>False</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>
@@ -95,12 +97,12 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
-    <Content Include="..\packages\MetadataExtractor.2.7.1\lib\net45\MetadataExtractor.dll">
+    <EmbeddedResource Include="..\packages\MetadataExtractor.2.7.1\lib\net45\MetadataExtractor.dll">
       <Link>Embedded Resource\MetadataExtractor.dll</Link>
-    </Content>
-    <Content Include="..\packages\XmpCore.6.1.10.1\lib\net35\XmpCore.dll">
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\packages\XmpCore.6.1.10.1\lib\net35\XmpCore.dll">
       <Link>Embedded Resource\XmpCore.dll</Link>
-    </Content>
+    </EmbeddedResource>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
