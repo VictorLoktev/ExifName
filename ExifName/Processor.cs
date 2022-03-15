@@ -17,7 +17,7 @@ namespace ExifName
 
 		const string _tmp_ = "._tmp_";
 		const string ConfigFileName = "exifname.config";
-		const string ConfigRegex = @"^\s*(?<sign>[+-])(?<time>\d\d?:\d\d?(:\d\d?(.\d+)?)?)\s*:\s*(?<camera>.+)\s*$";
+		const string ConfigRegex = @"^\s*(?<ext>\..+)\s+(?<sign>[+-])(?<time>\d\d?:\d\d?(:\d\d?(\.\d+)?)?)\s*(?<camera>.*)\s*$";
 		//const string FileMaskToRenameRegex = @"^(?:(DSC|IMG|PIC|P|PA|PB|PC|Photo|Video)[_-]?\d+|(?:[0-9]|(?:-|_)[0-9])+)(?'number_in_brackets'\(\d+\))?(?'name'\s*-\s*.*|\D\D.*)?$",
 		const string FileMaskToRenameRegex = @"^(?'name'(?:\p{L}|[()_]|\d| \d|-|(<!- ))+)(?'comment'.*)$";
 
@@ -25,9 +25,11 @@ namespace ExifName
 		{
 			public TimeSpan TimeShift;
 			public string Camera;
+			public string FileExtension;
 
-			public ConfigInfo( TimeSpan timeShift, string camera )
+			public ConfigInfo( string ext, TimeSpan timeShift, string camera )
 			{
+				FileExtension = ext;
 				TimeShift = timeShift;
 				Camera = camera;
 			}
@@ -62,20 +64,20 @@ namespace ExifName
 								{
 									switch( tag.Type )
 									{
-									case ExifIfd0Directory.TagModel:
-									case ExifIfd0Directory.TagMake:
-									case ExifIfd0Directory.TagBodySerialNumber:
-										Console.WriteLine( $"{tag}     => CAMERA in config" );
-										break;
-									case ExifIfd0Directory.TagCameraOwnerName:
-										Console.WriteLine( $"{tag}     => OWNER in config" );
-										break;
-									case ExifIfd0Directory.TagDateTime:
-										Console.WriteLine( $"{tag}     => DATE+TIME priority 1" );
-										break;
-									default:
-										simple = true;
-										break;
+										case ExifIfd0Directory.TagModel:
+										case ExifIfd0Directory.TagMake:
+										case ExifIfd0Directory.TagBodySerialNumber:
+											Console.WriteLine( $"{tag}     => CAMERA in config" );
+											break;
+										case ExifIfd0Directory.TagCameraOwnerName:
+											Console.WriteLine( $"{tag}     => OWNER in config" );
+											break;
+										case ExifIfd0Directory.TagDateTime:
+											Console.WriteLine( $"{tag}     => DATE+TIME priority 1" );
+											break;
+										default:
+											simple = true;
+											break;
 									}
 								}
 								else
@@ -83,15 +85,15 @@ namespace ExifName
 								{
 									switch( tag.Type )
 									{
-									case ExifSubIfdDirectory.TagDateTimeOriginal:
-										Console.WriteLine( $"{tag}     => DATE+TIME priority 2" );
-										break;
-									case ExifSubIfdDirectory.TagDateTimeDigitized:
-										Console.WriteLine( $"{tag}     => DATE+TIME priority 3" );
-										break;
-									default:
-										simple = true;
-										break;
+										case ExifSubIfdDirectory.TagDateTimeOriginal:
+											Console.WriteLine( $"{tag}     => DATE+TIME priority 2" );
+											break;
+										case ExifSubIfdDirectory.TagDateTimeDigitized:
+											Console.WriteLine( $"{tag}     => DATE+TIME priority 3" );
+											break;
+										default:
+											simple = true;
+											break;
 									}
 								}
 								else
@@ -99,13 +101,13 @@ namespace ExifName
 								{
 									switch( tag.Type )
 									{
-									case QuickTimeMovieHeaderDirectory.TagCreated:
-										Console.WriteLine( $"{tag}     => DATE+TIME priority 4" );
-										simple = false;
-										break;
-									default:
-										simple = true;
-										break;
+										case QuickTimeMovieHeaderDirectory.TagCreated:
+											Console.WriteLine( $"{tag}     => DATE+TIME priority 4" );
+											simple = false;
+											break;
+										default:
+											simple = true;
+											break;
 									}
 								}
 								else
@@ -137,22 +139,26 @@ namespace ExifName
 				string configFile = Path.Combine( srcDir, ConfigFileName );
 				if( File.Exists( configFile ) )
 				{
+					Console.WriteLine( "Конфигурационный файл: '{0}'", configFile );
 					Regex r = new Regex( ConfigRegex, RegexOptions.Compiled | RegexOptions.IgnoreCase );
 					string[] configLines = File.ReadAllLines( configFile );
 					bool emptyConfig = true;
 					for( int line = 0; line < configLines.Length; line++ )
 					{
 						string configLine = configLines[ line ].Trim();
-						if( string.IsNullOrWhiteSpace( configLine ) ) continue;
+						if( string.IsNullOrWhiteSpace( configLine ) )
+							continue;
 						emptyConfig = false;
 						if( configLine.StartsWith( "//" ) ||
 							configLine.StartsWith( "#" ) ||
 							configLine.StartsWith( "--" ) ||
-							configLine.StartsWith( "REM" ) ) continue; // комментарий
+							configLine.StartsWith( "REM" ) )
+							continue; // комментарий
 
 						TimeSpan span;
 						Match m = r.Match( configLine );
 						if( !m.Success ||
+							!m.Groups[ "ext" ].Success ||
 							!m.Groups[ "sign" ].Success ||
 							!m.Groups[ "time" ].Success ||
 							!m.Groups[ "camera" ].Success ||
@@ -161,13 +167,15 @@ namespace ExifName
 							Console.WriteLine(
 								$"Нераспознанный синтаксис строки {line + 1} конфигурационного файла папки.\r\n" +
 								"#    Полный формат строки конфигурации:\r\n" +
-								"#    <знак>HH:MM[:SS[.ttt]] : <подстрока CAMERA>\r\n" +
-								"#    <знак> Обязательный!\r\n"
+								"#    .EXT <знак>HH:MM[:SS[.ttt]][<подстрока CAMERA>]\r\n" +
+								"#    .EXT - расширение файла, точка обязательная, регистр не важен, пример: .jpg или .mp4\r\n" +
+								"#    <знак> - знак плюс или минус, обязательный, пример: + или -\r\n" +
+								"#    Пример: .jpg +03:00: samsung\r\n"
 								);
 							return;
 						}
 						string camera = m.Groups[ "camera" ].Value?.Trim();
-						config.Add( new ConfigInfo( span, camera ) );
+						config.Add( new ConfigInfo( m.Groups[ "ext" ].Value?.Trim(), span, camera ) );
 					}
 					if( emptyConfig )
 					{
@@ -183,26 +191,30 @@ namespace ExifName
 							"#    где <знак> один из символов: + или -.\r\n" +
 							"#    Если знак не задан, будет ошибка.\r\n" +
 							"#    Полный формат строки конфигурации:\r\n" +
-							"#    <знак>HH:MM[:SS[.ttt]] : <подстрока CAMERA>\r\n" +
+							"#    .ext <знак>HH:MM[:SS[.ttt]][<подстрока CAMERA>]\r\n" +
 							"#\r\n" +
 							"#    Видео файлы от телефонов не содержат информации о телефоне чтобы разделить файлы по аппаратам!\r\n" +
 							"#    Для видео-файлов следует указывать владельца \"VIDEDO\".\r\n" +
 							"#    Допустимо указывать смещение для одной камеры, а затем общее cмещение без указания названия камеры,\r\n" +
 							"#    Последнее будет использовано для видео файлов и всех, кто не подпаадет под указаное название\r\n" +
 							"# \r\n" +
-							"# +03:00 : SAMSUNG\r\n" +
-							"# +03:00 : OLIMPUS\r\n" +
+							"# .jpg +03:00 SAMSUNG\r\n" +
+							"# .mov +03:00 OLIMPUS\r\n" +
+							"# .mp4 +03:00\r\n" +
 							"#\r\n" +
 							"#\r\n\r\n\r\n"
 							);
 						Console.WriteLine( $"Конфигурационный файл {ConfigFileName} в папке заполнен комментарием." );
 					}
 				}
+				else
+				{
+					Console.WriteLine( "Конфигурационный файл exifname.config в папке не обнаружен." );
+				}
 
 				#endregion
 
-				Console.Out.WriteLine( "Обрабатывается директория:" );
-				Console.Out.WriteLine( srcDir );
+				Console.Out.WriteLine( $"Обрабатывается директория:\r\n{srcDir}" );
 
 				/*
 				Отлавливаем в названиях файлов два варианта конструкции:
@@ -266,6 +278,23 @@ namespace ExifName
 								// Субсекундная часть иногда записывается сюда
 								info.PhotoDateTime += new TimeSpan( 0, 0, 0, 0, subSec );
 							}
+							if( dateInExifFound )
+							{
+								string zone = picSubExif.GetDescription( ExifSubIfdDirectory.TagTimeZone );
+								if( !string.IsNullOrWhiteSpace( zone ) )
+								{
+									// [Exif SubIFD] Time Zone - +08:00
+									string[] parts = zone.Split( new char[] { '+', '-', ':' }, StringSplitOptions.RemoveEmptyEntries );
+									if( parts.Length == 2 )
+									{
+										int h = int.Parse( parts[ 0 ] );
+										int m = int.Parse( parts[ 1 ] );
+										if( zone.Contains( "-" ) )
+											h = -h;
+										info.TimeOffset = new TimeSpan( h, m, 0 );
+									}
+								}
+							}
 							if( !dateInExifFound && picSubExif.TryGetDateTime( ExifSubIfdDirectory.TagDateTimeOriginal, out var datetime ) )
 							{
 								info.PhotoDateTime = datetime;
@@ -275,6 +304,20 @@ namespace ExifName
 									//[Exif SubIFD] Sub-Sec Time Original - 0854
 									// Субсекундная часть иногда записывается сюда
 									info.PhotoDateTime += new TimeSpan( 0, 0, 0, 0, subSec );
+								}
+								string zone = picSubExif.GetDescription( ExifSubIfdDirectory.TagTimeZoneOriginal );
+								if( !string.IsNullOrWhiteSpace( zone ) )
+								{
+									// [Exif SubIFD] Time Zone Original - +08:00
+									string[] parts = zone.Split( new char[] { '+', '-', ':' }, StringSplitOptions.RemoveEmptyEntries );
+									if( parts.Length == 2 )
+									{
+										int h = int.Parse( parts[0] );
+										int m = int.Parse( parts[1] );
+										if( zone.Contains( "-" ) )
+											h = -h;
+										info.TimeOffset = new TimeSpan( h, m, 0 );
+									}
 								}
 							}
 
@@ -294,24 +337,27 @@ namespace ExifName
 						{
 							ConfigInfo? inf = null;
 							if( !inf.HasValue && !string.IsNullOrEmpty( info.CameraInternalSerialNumber ) )
-								FindCameraConfig( config, info.CameraInternalSerialNumber );
+								FindCameraConfig( info.Extention, config, info.CameraInternalSerialNumber );
 							if( !inf.HasValue && !string.IsNullOrEmpty( info.CameraOwner ) )
-								inf = FindCameraConfig( config, info.CameraOwner );
+								inf = FindCameraConfig( info.Extention, config, info.CameraOwner );
 							if( !inf.HasValue && !string.IsNullOrEmpty( info.CameraModel ) )
-								inf = FindCameraConfig( config, info.CameraModel );
+								inf = FindCameraConfig( info.Extention, config, info.CameraModel );
 							if( !inf.HasValue && !string.IsNullOrEmpty( info.CameraMake ) )
-								inf = FindCameraConfig( config, info.CameraMake );
+								inf = FindCameraConfig( info.Extention, config, info.CameraMake );
 
 							if( inf.HasValue )
 							{
 								// Из времени файла в exif вычитается сдвиг зоны конфигурационного файла - это приведение к GMT,
 								// а затем добавляется смещение относительно GMT времени файла чтобы получить текущую зону дома владельца
-								FileInfo fInfo = new FileInfo( file );
-								DateTime d1 = fInfo.LastWriteTimeUtc;
-								DateTime d2 = fInfo.LastWriteTime;
-								info.PhotoDateTime +=
-									- inf.Value.TimeShift
-									+ d2.Subtract( d1 );
+								//FileInfo fInfo = new FileInfo( file );
+								//DateTime d1 = fInfo.LastWriteTimeUtc;
+								//DateTime d2 = fInfo.LastWriteTime;
+								//info.PhotoDateTime +=
+								//	- inf.Value.TimeShift
+								//	+ d2.Subtract( d1 );
+
+								// Ко времени внутри файла (из EXIF) добавляется сдвиг, заданный в конфигурационном файле в папке с фотографиями
+								//info.PhotoDateTime += inf.Value.TimeShift;
 							}
 							else
 							if( config.Count > 0 )
@@ -329,11 +375,11 @@ namespace ExifName
 						}
 						if( !dateInExifFound && movExif != null )
 						{
+							info.IsVideo = true;
 							foreach( int tag in new int[] { QuickTimeMovieHeaderDirectory.TagCreated } )
 							{
 								if( movExif.TryGetDateTime( tag, out var datetime ) )
 								{
-									TimeSpan currentOffset = new TimeSpan();
 									var major = directories.OfType<QuickTimeFileTypeDirectory>().FirstOrDefault();
 									if( major != null )
 									{
@@ -342,7 +388,7 @@ namespace ExifName
 										// смещение не нужно
 										case "3gp5":// Телефон типа HTC Hero
 										case "qt":  // QuickTime
-											currentOffset = new TimeSpan();
+											info.TimeOffset = TimeSpan.Zero;
 											break;
 										// Смещение нужно
 										case "isom":// OLYMPUS E-P5
@@ -350,12 +396,21 @@ namespace ExifName
 										case "3gp":// Телефон
 										case "3gp2":// Телефон
 										case "3gp3":// Телефон
-										case "3gp4":// Телефон типа HTC Hero
-													//currentOffset = TimeZone.CurrentTimeZone.GetUtcOffset( DateTime.Now );
+										case "3gp4":
+											// Телефон типа HTC Hero
+											// Samsung S20+
+											//currentOffset = TimeZone.CurrentTimeZone.GetUtcOffset( DateTime.Now );
+											/*
+											 * Для данного типа видео в файл время съемки пишется в зоне GMT.
+											 * Либо должен быть конфигурационный файл с установленным смещением по временной зоне
+											 * либо должны быть фотографии в папке, тогда по зоне из них будет делаться смещение для видео.
+											 * Если нет ни того, ни другого, смещение задается зоной по дате из файла, когда файл
+											 * переписывается с камеры/телефона на диск ПК, обычно это зона на ПК в момент копирования файла.
+											 */
 											FileInfo fInfo = new FileInfo( file );
 											DateTime d1 = fInfo.LastWriteTimeUtc;
 											DateTime d2 = fInfo.LastWriteTime;
-											currentOffset = d2.Subtract( d1 );
+											info.TimeOffset = d2.Subtract( d1 );
 											break;
 										default:
 											Console.Error.WriteLine( $"Файл `{info.NameWithoutExtention}{info.Extention}' " +
@@ -363,16 +418,16 @@ namespace ExifName
 											break;
 										}
 									}
-									ConfigInfo? inf = FindCameraConfig( config, "VIDEO" );
+									ConfigInfo? inf = FindCameraConfig( info.Extention, config, "VIDEO" );
 									if( !inf.HasValue )
-										inf = FindCameraConfig( config, "" );
+										inf = FindCameraConfig( info.Extention, config, "" );
 									if( config.Count > 0 && !inf.HasValue )
 									{
 										Console.WriteLine( "В конфигурационном файле не задана камера \"VIDEO\"" );
 										return;
 									}
 
-									info.PhotoDateTime = datetime + ( inf.HasValue ? inf.Value.TimeShift : currentOffset );
+									info.PhotoDateTime = datetime + ( inf?.TimeShift ?? info.TimeOffset );
 									dateInExifFound = true;
 									break;
 								}
@@ -383,7 +438,10 @@ namespace ExifName
 							continue;
 
 						// Защита от сброшенных в фотоаппарате дат
-						if( info.PhotoDateTime < new DateTime( 2001, 3, 1 ) || info.PhotoDateTime > DateTime.Now ||
+						if( info.PhotoDateTime < new DateTime( 2001, 3, 1 ) ||
+							// Если была съемка, а потом перелет с изменением часового пояса,
+							// то время фотографии будет больше текущего, проверяем чтобы не было больше суток
+							info.PhotoDateTime > DateTime.Now.AddDays( 1 ) ||
 							info.PhotoDateTime == new DateTime( 2004, 1, 1, 0, 0, 0 ) )
 						{
 							Console.Error.WriteLine( $"Файл `{info.NameWithoutExtention}{info.Extention}' " +
@@ -403,32 +461,22 @@ namespace ExifName
 							{
 								info.NameDescription = m.Groups[ "comment" ]?.Value;
 							}
-							else
-							{
-								// Установить дату и время файла из Exif
-								FileInfo fInfo = new FileInfo( Path.Combine( srcDir, info.OriginalName ) );
-								File.SetCreationTime( fInfo.FullName, info.PhotoDateTime );
-								File.SetLastWriteTime( fInfo.FullName, info.PhotoDateTime );
-								// и не переименовывать
-								info = null;
-							}
+							//else
+							//{
+							//	// Установить дату и время файла из Exif
+							//	FileInfo fInfo = new FileInfo( Path.Combine( srcDir, info.OriginalName ) );
+							//	File.SetCreationTime( fInfo.FullName, info.PhotoDateTime );
+							//	File.SetLastWriteTime( fInfo.FullName, info.PhotoDateTime );
+							//	// и не переименовывать
+							//	info = null;
+							//}
 						}
 
 						#endregion
-						#region Если расширение обрабатыватся, добавить файл в список для обработки и назначение имени
+						#region Если расширение обрабатыватся, добавить файл в список для обработки
 
 						if( info != null )
 						{
-							info.FinalName = string.Format( "{0}{1}{2}{3}",
-								info.PhotoDateTime.ToString( "yyyy-MM-dd-HHmm" ),
-								"{IncrementNumber3}",
-								info.NameDescription,
-								info.Extention
-								);
-							info.TmpName = string.Format( "{0}" + _tmp_ + "{1}",
-								Path.GetFileNameWithoutExtension( info.OriginalName ),
-								info.Extention
-								);
 							FileList.Add( info );
 						}
 
@@ -445,6 +493,61 @@ namespace ExifName
 						return;
 					}
 				}
+
+				/*
+				 * Если конфига нет или он пустой, делаем автоматические действия:
+				 * Смотрим time zone всех фотографий (.jpg или .heic), если оно одинаковое,
+				 * то задаем такой же time zone для всех видео.
+				 */
+				if( config.Count == 0 )
+				{
+					bool sameZone = true;
+					TimeSpan? zone = null;
+					foreach( var file in FileList )
+					{
+						if( file.TimeOffset != TimeSpan.Zero &&
+							!file.IsVideo )
+						{
+							if( zone == null )
+								zone = file.TimeOffset;
+							sameZone &= zone == file.TimeOffset;
+						}
+					}
+					if( sameZone && zone.HasValue )
+					{
+						Console.Out.WriteLine( $"Для видео задается автоматическая временная зона по фотографиям: {zone?.ToString( "hh\\:mm" )}" );
+
+						foreach( var file in FileList )
+                        {
+                            // Для фото значение будет таким же, как было,
+                            // для видео будет сдвиг от GMT к зоне из фото.
+                            file.PhotoDateTime += zone.Value - file.TimeOffset;
+                            // Установка зоны для файла
+                            file.TimeOffset = zone.Value;
+                        }
+                    }
+				}
+
+				#region Установка названия файла с учет ов даты, времени и зоны
+
+				for( int index = 0; index < FileList.Count; index++ )
+				{
+					var file = FileList[ index ];
+
+					file.FinalName = string.Format( "{0}{1}{2}{3}",
+						file.PhotoDateTime.ToString( "yyyy-MM-dd-HHmm" ),
+						"{IncrementNumber3}",
+						file.NameDescription,
+						file.Extention
+						);
+					file.TmpName = string.Format( "{0}" + _tmp_ + "{1}",
+						Path.GetFileNameWithoutExtension( file.OriginalName ),
+						file.Extention
+						);
+				}
+
+				#endregion
+
 				// Сортировка
 				FileList.Sort( ExifFileInfo.Comparer );
 
@@ -546,10 +649,12 @@ namespace ExifName
 				Console.Out.WriteLine( "Ошибка:\r\n\r\n{0}\r\n\r\n", ex.Message );
 			}
 		}
-		private ConfigInfo? FindCameraConfig( List<ConfigInfo> config, string camera )
+		private ConfigInfo? FindCameraConfig( string fileExtension, List<ConfigInfo> config, string camera )
 		{
 			foreach( ConfigInfo inf in config )
 			{
+				if( !inf.FileExtension.Equals( fileExtension, StringComparison.OrdinalIgnoreCase ) )
+					continue;
 				if( string.IsNullOrEmpty( inf.Camera ) ||
 					( camera ?? "" ).Trim().ContainsIgnoreCase( inf.Camera ) )
 					return inf;

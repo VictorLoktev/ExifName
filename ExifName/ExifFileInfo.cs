@@ -1,7 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 
 namespace ExifName
 {
@@ -20,20 +17,29 @@ namespace ExifName
 		public string	CameraModel;
 		public string	CameraMake;
 		public TimeSpan	TimeOffset;
+		public bool     IsVideo;
 
 		public ExifFileInfo()
 		{
 			PhotoDateTime = DateTime.MinValue;
-			TimeOffset = new TimeSpan( 0, 0, 0 );
+			TimeOffset = TimeSpan.Zero;
 		}
 
 		public static int Comparer( ExifFileInfo a, ExifFileInfo b )
 		{
 			int i;
 			i = DateTime.Compare( a.PhotoDateTime, b.PhotoDateTime );
-			if( i != 0 ) return i;
+			if( i != 0 )
+				return i;
+
+			i = TimeSpan.Compare( a.TimeOffset, b.TimeOffset );
+			if( i != 0 )
+				return i;
+
 			i = String.Compare( a.OriginalName, b.OriginalName );
-			if( i != 0 ) return i;
+			if( i != 0 )
+				return i;
+
 			i = String.Compare( a.FinalName, b.FinalName );
 			return i;
 		}
