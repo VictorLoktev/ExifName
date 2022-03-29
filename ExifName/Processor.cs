@@ -239,7 +239,15 @@ namespace ExifName
 				{
 					try
 					{
-						var directories = ImageMetadataReader.ReadMetadata( file );
+						IReadOnlyList<MetadataExtractor.Directory> directories;
+						try
+						{
+							directories = ImageMetadataReader.ReadMetadata( file );
+						}
+						catch
+						{
+							continue;
+						}
 
 						#region Чтение информации о файле
 
