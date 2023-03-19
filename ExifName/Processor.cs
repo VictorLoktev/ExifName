@@ -73,7 +73,7 @@ namespace ExifName
 											Console.WriteLine( $"{tag}     => OWNER in config" );
 											break;
 										case ExifIfd0Directory.TagDateTime:
-											Console.WriteLine( $"{tag}     => DATE+TIME priority 1" );
+											Console.WriteLine( $"{tag}     => DATE+TIME priority 3" );
 											break;
 										default:
 											simple = true;
@@ -86,10 +86,10 @@ namespace ExifName
 									switch( tag.Type )
 									{
 										case ExifSubIfdDirectory.TagDateTimeOriginal:
-											Console.WriteLine( $"{tag}     => DATE+TIME priority 2" );
+											Console.WriteLine( $"{tag}     => DATE+TIME priority 1" );
 											break;
 										case ExifSubIfdDirectory.TagDateTimeDigitized:
-											Console.WriteLine( $"{tag}     => DATE+TIME priority 3" );
+											Console.WriteLine( $"{tag}     => DATE+TIME priority 2" );
 											break;
 										default:
 											simple = true;
@@ -187,7 +187,7 @@ namespace ExifName
 							"# 2) В строке задается временная зона (смещение) для конкретного фотоаппарата,\r\n" +
 							"#    фотоаппарат задается подстрокой параметра CAMERA\r\n" +
 							"#    (см. exif-информацию, выдаваемую программой по файлу вызовом ExifName <filename>).\r\n" +
-							"#    Смещение временой зоны записывается в формате <знак>HH:MM[:SS[.ttt]],\r\n" +
+							"#    Смещение временной зоны записывается в формате <знак>HH:MM[:SS[.ttt]],\r\n" +
 							"#    где <знак> один из символов: + или -.\r\n" +
 							"#    Если знак не задан, будет ошибка.\r\n" +
 							"#    Полный формат строки конфигурации:\r\n" +
@@ -195,8 +195,8 @@ namespace ExifName
 							"#\r\n" +
 							"#    Видео файлы от телефонов не содержат информации о телефоне чтобы разделить файлы по аппаратам!\r\n" +
 							"#    Для видео-файлов следует указывать владельца \"VIDEDO\".\r\n" +
-							"#    Допустимо указывать смещение для одной камеры, а затем общее cмещение без указания названия камеры,\r\n" +
-							"#    Последнее будет использовано для видео файлов и всех, кто не подпаадет под указаное название\r\n" +
+							"#    Допустимо указывать смещение для одной камеры, а затем общее смещение без указания названия камеры,\r\n" +
+							"#    Последнее будет использовано для видео файлов и всех, кто не подпадает под указанное название\r\n" +
 							"# \r\n" +
 							"# .jpg +03:00 SAMSUNG\r\n" +
 							"# .mov +03:00 OLIMPUS\r\n" +
@@ -218,9 +218,10 @@ namespace ExifName
 
 				/*
 				Отлавливаем в названиях файлов два варианта конструкции:
-				Первый - буквы и цыфры до пробела, пробел здесь разделитель части нумерации файла и комментария в названии.
+				Первый - буквы и цифры до пробела, пробел здесь разделитель части нумерации файла и комментария в названии.
 				Второй для файлов вида "Картинка 1.jpg".
-				Поэтому к номерной части относим все, включая пробел, после которого цифра, а пробкл, после которого нет цифры относим к комментарию.
+				Поэтому к номерной части относим все, включая пробел, после которого цифра,
+				а пробел, после которого нет цифры относим к комментарию.
 
 				https://stackoverflow.com/questions/28156769/foreign-language-characters-in-regular-expression-in-c-sharp
 				*/
@@ -229,9 +230,9 @@ namespace ExifName
 
 				string guid = Guid.NewGuid().ToString( "N" );
 				string undoFile1 = Path.Combine( Path.GetTempPath(),
-					$"exifname undo {DateTime.Now.ToString( "yyyy-MM-dd hh-mm-ss" )} {guid} run 1st.cmd" );
+					$"exifname undo {DateTime.Now.ToString( "yyyy-MM-dd HH-mm-ss" )} {guid} run 1st.cmd" );
 				string undoFile2 = Path.Combine( Path.GetTempPath(),
-					$"exifname undo {DateTime.Now.ToString( "yyyy-MM-dd hh-mm-ss" )} {guid} run 2nd.cmd" );
+					$"exifname undo {DateTime.Now.ToString( "yyyy-MM-dd HH-mm-ss" )} {guid} run 2nd.cmd" );
 
 				List<ExifFileInfo> FileList = new List<ExifFileInfo>();
 				string[] files = System.IO.Directory.GetFiles( srcDir, "*", SearchOption.TopDirectoryOnly );
@@ -265,49 +266,13 @@ namespace ExifName
 						var picSubExif = directories.OfType<ExifSubIfdDirectory>().FirstOrDefault();
 						var movExif = directories.OfType<QuickTimeMovieHeaderDirectory>().FirstOrDefault();
 
-						if( pic0Exif != null )
-						{
-							info.CameraModel = pic0Exif.GetString( ExifDirectoryBase.TagModel );
-							info.CameraMake = pic0Exif.GetString( ExifDirectoryBase.TagMake );
-							info.CameraInternalSerialNumber = pic0Exif.GetString( ExifDirectoryBase.TagBodySerialNumber );
-							info.CameraOwner = pic0Exif.GetString( ExifDirectoryBase.TagCameraOwnerName );
-
-							if( pic0Exif.TryGetDateTime( ExifIfd0Directory.TagDateTime, out var datetime ) )
-							{
-								info.PhotoDateTime = datetime;
-								dateInExifFound = true;
-							}
-						}
 						if( picSubExif != null )
 						{
-							if( dateInExifFound && picSubExif.TryGetInt32( ExifSubIfdDirectory.TagSubsecondTime, out var subSec ) )
-							{
-								//[Exif SubIFD] Sub-Sec Time - 0854
-								// Субсекундная часть иногда записывается сюда
-								info.PhotoDateTime += new TimeSpan( 0, 0, 0, 0, subSec );
-							}
-							if( dateInExifFound )
-							{
-								string zone = picSubExif.GetDescription( ExifSubIfdDirectory.TagTimeZone );
-								if( !string.IsNullOrWhiteSpace( zone ) )
-								{
-									// [Exif SubIFD] Time Zone - +08:00
-									string[] parts = zone.Split( new char[] { '+', '-', ':' }, StringSplitOptions.RemoveEmptyEntries );
-									if( parts.Length == 2 )
-									{
-										int h = int.Parse( parts[ 0 ] );
-										int m = int.Parse( parts[ 1 ] );
-										if( zone.Contains( "-" ) )
-											h = -h;
-										info.TimeOffset = new TimeSpan( h, m, 0 );
-									}
-								}
-							}
 							if( !dateInExifFound && picSubExif.TryGetDateTime( ExifSubIfdDirectory.TagDateTimeOriginal, out var datetime ) )
 							{
 								info.PhotoDateTime = datetime;
 								dateInExifFound = true;
-								if( picSubExif.TryGetInt32( ExifSubIfdDirectory.TagSubsecondTimeOriginal, out subSec ) )
+								if( picSubExif.TryGetInt32( ExifSubIfdDirectory.TagSubsecondTimeOriginal, out var subSec ) )
 								{
 									//[Exif SubIFD] Sub-Sec Time Original - 0854
 									// Субсекундная часть иногда записывается сюда
@@ -333,7 +298,7 @@ namespace ExifName
 							{
 								info.PhotoDateTime = datetime;
 								dateInExifFound = true;
-								if( picSubExif.TryGetInt32( ExifSubIfdDirectory.TagSubsecondTimeDigitized, out subSec ) )
+								if( picSubExif.TryGetInt32( ExifSubIfdDirectory.TagSubsecondTimeDigitized, out var subSec ) )
 								{
 									//[Exif SubIFD] Sub-Sec Time Digitized - 0854
 									// Субсекундная часть иногда записывается сюда
@@ -341,6 +306,46 @@ namespace ExifName
 								}
 							}
 						}
+
+						if( pic0Exif != null )
+						{
+							info.CameraModel = pic0Exif.GetString( ExifDirectoryBase.TagModel );
+							info.CameraMake = pic0Exif.GetString( ExifDirectoryBase.TagMake );
+							info.CameraInternalSerialNumber = pic0Exif.GetString( ExifDirectoryBase.TagBodySerialNumber );
+							info.CameraOwner = pic0Exif.GetString( ExifDirectoryBase.TagCameraOwnerName );
+
+							if( !dateInExifFound && pic0Exif.TryGetDateTime( ExifIfd0Directory.TagDateTime, out var datetime ) )
+							{
+								info.PhotoDateTime = datetime;
+								dateInExifFound = true;
+							}
+						}
+
+						if( picSubExif != null && dateInExifFound )
+						{
+							if( picSubExif.TryGetInt32( ExifSubIfdDirectory.TagSubsecondTime, out var subSec ) )
+							{
+								//[Exif SubIFD] Sub-Sec Time - 0854
+								// Субсекундная часть иногда записывается сюда
+								info.PhotoDateTime += new TimeSpan( 0, 0, 0, 0, subSec );
+							}
+
+							string zone = picSubExif.GetDescription( ExifSubIfdDirectory.TagTimeZone );
+							if( !string.IsNullOrWhiteSpace( zone ) )
+							{
+								// [Exif SubIFD] Time Zone - +08:00
+								string[] parts = zone.Split( new char[] { '+', '-', ':' }, StringSplitOptions.RemoveEmptyEntries );
+								if( parts.Length == 2 )
+								{
+									int h = int.Parse( parts[ 0 ] );
+									int m = int.Parse( parts[ 1 ] );
+									if( zone.Contains( "-" ) )
+										h = -h;
+									info.TimeOffset = new TimeSpan( h, m, 0 );
+								}
+							}
+						}
+
 						if( dateInExifFound )
 						{
 							ConfigInfo? inf = null;
@@ -398,15 +403,24 @@ namespace ExifName
 										case "qt":  // QuickTime
 											info.TimeOffset = TimeSpan.Zero;
 											break;
+
 										// Смещение нужно
-										case "isom":// OLYMPUS E-P5
-										case "mp42":// Samsung Galaxy 
-										case "3gp":// Телефон
-										case "3gp2":// Телефон
-										case "3gp3":// Телефон
+										// OLYMPUS E-P5
+										// Samsung Galaxy 
+										case "isom":
+										// Samsung Galaxy 
+										// Samsung S20+
+										case "mp42":
+										// Телефон
+										// Телефон типа HTC Hero
+										case "3gp":
+										// Телефон
+										case "3gp2":
+										// Телефон
+										case "3gp3":
 										case "3gp4":
-											// Телефон типа HTC Hero
-											// Samsung S20+
+										// Видео с фотоаппарата
+										case "m4v":
 											//currentOffset = TimeZone.CurrentTimeZone.GetUtcOffset( DateTime.Now );
 											/*
 											 * Для данного типа видео в файл время съемки пишется в зоне GMT.
@@ -421,8 +435,8 @@ namespace ExifName
 											info.TimeOffset = d2.Subtract( d1 );
 											break;
 										default:
-											Console.Error.WriteLine( $"Файл `{info.NameWithoutExtention}{info.Extention}' " +
-												$"содержит неизвестный Major Brand `{( major.GetString( QuickTimeFileTypeDirectory.TagMajorBrand ) ?? "" )}'" );
+											Console.Error.WriteLine( $"Файл '{info.NameWithoutExtention}{info.Extention}' " +
+												$"содержит неизвестный Major Brand '{( major.GetString( QuickTimeFileTypeDirectory.TagMajorBrand ) ?? "" )}'" );
 											break;
 										}
 									}
@@ -459,7 +473,7 @@ namespace ExifName
 
 						#endregion
 
-						#region Если названию файла уже доблено текстовое название
+						#region Если названию файла уже добавлено текстовое название
 
 						if( info != null )
 						{
@@ -503,7 +517,7 @@ namespace ExifName
 				}
 
 				/*
-				 * Если конфига нет или он пустой, делаем автоматические действия:
+				 * Если config-файла нет или он пустой, делаем автоматические действия:
 				 * Смотрим time zone всех фотографий (.jpg или .heic), если оно одинаковое,
 				 * то задаем такой же time zone для всех видео.
 				 */
@@ -536,7 +550,7 @@ namespace ExifName
                     }
 				}
 
-				#region Установка названия файла с учет ов даты, времени и зоны
+				#region Установка названия файла с учетом даты, времени и зоны
 
 				for( int index = 0; index < FileList.Count; index++ )
 				{
