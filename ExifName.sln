@@ -1,9 +1,14 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.27130.2026
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.33530.505
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExifName", "ExifName\ExifName.csproj", "{18C31625-3A43-44DA-9431-D267FEB47983}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ExifName", "ExifName\ExifName.csproj", "{6D913E74-53E7-4F9D-BB56-ADB4B1C3636F}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{DB2396F6-0E37-496A-BC45-D8D451BA0AE4}"
+	ProjectSection(SolutionItems) = preProject
+		README.md = README.md
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -13,28 +18,19 @@ Global
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{18C31625-3A43-44DA-9431-D267FEB47983}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{18C31625-3A43-44DA-9431-D267FEB47983}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{18C31625-3A43-44DA-9431-D267FEB47983}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{18C31625-3A43-44DA-9431-D267FEB47983}.Debug|x86.Build.0 = Debug|Any CPU
-		{18C31625-3A43-44DA-9431-D267FEB47983}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{18C31625-3A43-44DA-9431-D267FEB47983}.Release|Any CPU.Build.0 = Release|Any CPU
-		{18C31625-3A43-44DA-9431-D267FEB47983}.Release|x86.ActiveCfg = Release|Any CPU
-		{18C31625-3A43-44DA-9431-D267FEB47983}.Release|x86.Build.0 = Release|Any CPU
+		{6D913E74-53E7-4F9D-BB56-ADB4B1C3636F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6D913E74-53E7-4F9D-BB56-ADB4B1C3636F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6D913E74-53E7-4F9D-BB56-ADB4B1C3636F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{6D913E74-53E7-4F9D-BB56-ADB4B1C3636F}.Debug|x86.Build.0 = Debug|Any CPU
+		{6D913E74-53E7-4F9D-BB56-ADB4B1C3636F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6D913E74-53E7-4F9D-BB56-ADB4B1C3636F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6D913E74-53E7-4F9D-BB56-ADB4B1C3636F}.Release|x86.ActiveCfg = Release|Any CPU
+		{6D913E74-53E7-4F9D-BB56-ADB4B1C3636F}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {0DF769A9-BDC5-41B9-B061-6BAF52DC81C0}
-	EndGlobalSection
-	GlobalSection(TeamFoundationVersionControl) = preSolution
-		SccNumberOfProjects = 2
-		SccEnterpriseProvider = {4CA58AB2-18FA-4F8D-95D4-32DDF27D184C}
-		SccTeamFoundationServer = https://victorloktev.visualstudio.com/
-		SccLocalPath0 = .
-		SccProjectUniqueName1 = ExifName\\ExifName.csproj
-		SccProjectName1 = ExifName
-		SccLocalPath1 = ExifName
 	EndGlobalSection
 EndGlobal
