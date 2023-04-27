@@ -4,11 +4,11 @@
 	{
 		public string? OriginalName;
 		public string? FinalName;
-		public string? TmpName;
+        public string? DateTimePartName;
+        public string? TmpName;
 		public string? Extention;
 		public string? NameWithoutExtention;
 		public string? NameDescription;
-		public int IncrementNumber;
 		public string? CameraOwner;
 		public string? CameraInternalSerialNumber;
 		public string? CameraModel;

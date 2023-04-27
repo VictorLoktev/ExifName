@@ -14,24 +14,12 @@ namespace ExifName
     {
         static void Main(string[] args)
         {
-            //string? version = Assembly.GetExecutingAssembly().GetName().Version?.ToString();
-
-            //Console.WriteLine($"\r\nExifname v{version}\r\n");
-
-            // Необходимо для загрузки зависимых сборок из ресурсов
-            //AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
-
-            //            Processor processor = new Processor();
-            //            processor.Run( args );
-
             var helpWriter = new StringWriter();
             var parser = new CommandLine.Parser(with => with.HelpWriter = helpWriter);
             _ = parser.ParseArguments<CliOptions, CliOptionInformation, CliOptionRename>(args)
                 .WithParsed<CliOptionInformation>(opts => Processor.DisplayInformation(opts))
                 .WithParsed<CliOptionRename>(opts => RenameDirectory(opts))
                 .WithNotParsed(errs => DisplayHelp(errs, helpWriter));
-
-            //Console.ReadKey();
         }
 
         public static void RenameDirectory(CliOptionRename options)
@@ -80,7 +68,7 @@ namespace ExifName
                 Console.Write(helpWriter.ToString());
                 Console.WriteLine(
                     "Минимальная и максимальная даты устанавливаются для защиты\r\n" +
-                    "на случай, если у фотоаппарата сбита дата и в Exif записана ерунда.\r\n" +
+                    "на случай, если у фотоаппарата дата обнулена, затем попала в Exif.\r\n" +
                     "Для более точного управления переименованием файлов используйте\r\n" +
                     $"файл конфигурации - поместите пустой файл {Config.ConfigFileName}\r\n" +
                     $"в обрабатываемую директорию и запустите программу.\r\n" +
@@ -105,43 +93,6 @@ namespace ExifName
             }
 
             return -1;
-        }
-
-        // Source: https://stackoverflow.com/questions/10137937/merge-dll-into-exe
-        private static Assembly? CurrentDomain_AssemblyResolve(object sender, ResolveEventArgs args) => AssemblyResolve(args.Name);
-
-        private static Assembly? AssemblyResolve(string name)
-        {
-            // Source: https://stackoverflow.com/questions/10137937/merge-dll-into-exe
-
-            Assembly thisAssembly = Assembly.GetExecutingAssembly();
-
-            //Get the Name of the AssemblyFile
-            if (!name.EndsWith(".dll"))
-            {
-                int index = name.IndexOf(',');
-                if (index > 0)
-                    name = name.Substring(0, index);
-                name += ".dll";
-            }
-
-            //Load form Embedded Resources - This Function is not called if the Assembly is in the Application Folder
-            var resources = thisAssembly.GetManifestResourceNames().Where(s => s.EndsWith(name));
-            if (resources.Any())
-            {
-                string resourceName = resources.First();
-                using (Stream? stream = thisAssembly.GetManifestResourceStream(resourceName))
-                {
-                    if (stream == null)
-                        return null;
-                    byte[] block = new byte[ stream.Length ];
-                    _ = stream.Read(block, 0, block.Length);
-                    Assembly asm = Assembly.Load(block);
-                    AssemblyName[] asmNames = asm.GetReferencedAssemblies();
-                    return asm;
-                }
-            }
-            return null;
         }
     }
 }

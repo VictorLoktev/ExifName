@@ -4,7 +4,7 @@
         "commandName": "Project",
         "2commandLineArgs": "rename \"D:\\Downloads\\Почему неправильная последовательность\"",
         "1commandLineArgs": "rename --min 2000-01-01 --max 2025-05-01 --priority 0",
-        "commandLineArgs": "rename"
+        "commandLineArgs": "rename \"D:\\.TS-Git\\VictorLoktev\\ExifName\\ExifName\\bin\\Debug\\net7.0\\Camera\""
     }
   }
 }

@@ -571,8 +571,40 @@ namespace ExifName
             for (int index = 0; index < FileList.Count; index++)
             {
                 var file = FileList[ index ];
+                if (!file.PhotoDateTime.HasValue)
+                    continue;
 
-                file.FinalName = $"{file.PhotoDateTime:yyyy-MM-dd-HHmm}<IncrementNumber3>{file.NameDescription}{file.Extention}";
+                DateTime t = file.PhotoDateTime.Value;
+                int maxCounter = FileList.Count + 2;
+                while(maxCounter-->=0)
+                {
+                    /*
+                     * Пытаемся перебором подобрать уникальное имя по дате и времени.
+                     * В одну секунду может быть сделано несколько фото одним или несколькими фотоаппаратами.
+                     * Мы берем исходное время и проверяем есть ли другая фотография с таким же датой и временем.
+                     * Если есть, добавляем 1/10 секунды и проверяем снова.
+                     * Время фотографии в названии файла может убежать, но не далеко.
+                     */
+
+                    string unique = t.ToString(options.Template);
+                    if (FileList.Any(x => x.DateTimePartName == unique))
+                    {
+                        t = t.AddMilliseconds(100);
+                    }
+                    else
+                    {
+                        file.DateTimePartName = unique;
+                        break;
+                    }
+                }
+
+                if (maxCounter < 0)
+                {
+                    Console.Out.WriteLine("Ошибка подбора названия файла чтобы не совпадали названия файлов");
+                    return 1;
+                }
+
+                file.FinalName = $"{file.DateTimePartName}{file.NameDescription}{file.Extention}";
                 file.TmpName = $"{Path.GetFileNameWithoutExtension(file.OriginalName)}._tmp_{file.Extention}";
             }
 
@@ -581,13 +613,6 @@ namespace ExifName
             // Сортировка
             FileList.Sort(ExifFileInfo.Comparer);
 
-            #region Сколько цифр в сквозном нумераторе
-
-            string incFormat = "D3";
-            if (FileList.Count.ToString("G").Length > 3)
-                incFormat = "D" + FileList.Count.ToString("G").Length;
-
-            #endregion
             #region Сначала все файлы переименовываются во временные названия, чтобы не мешаться при нормальном переименовании
 
             Stack<Tuple<string, string>> rollback = new Stack<Tuple<string, string>>();
@@ -634,21 +659,6 @@ namespace ExifName
             for (int index = 0; index < FileList.Count; index++)
             {
                 ExifFileInfo info = FileList[ index ];
-                // расстановка сквозного нумератора по файлам в директории
-                info.IncrementNumber = index;
-
-                // проверка что файла с таким названием еще нет, иначе нумератор увеличивается на 1
-                int maxN = 10000;
-                string fileName = "";
-                do
-                {
-                    info.IncrementNumber++;
-                    fileName = info.FinalName?.Replace("<IncrementNumber3>", info.IncrementNumber.ToString(incFormat)) ?? "";
-                    maxN--;
-                }
-                while (File.Exists(Path.Combine(workingDirectory, fileName)) && maxN > 0);
-
-                info.FinalName = fileName;
 
                 if (info.FinalName == null || info.TmpName == null || info.PhotoDateTime == null)
                     continue;
