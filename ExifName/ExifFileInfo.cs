@@ -4,8 +4,8 @@
 	{
 		public string? OriginalName;
 		public string? FinalName;
-        public string? DateTimePartName;
-        public string? TmpName;
+		public string? DateTimePartName;
+		public string? TmpName;
 		public string? Extention;
 		public string? NameWithoutExtention;
 		public string? NameDescription;

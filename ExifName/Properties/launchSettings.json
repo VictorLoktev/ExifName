@@ -1,8 +1,8 @@
-﻿{
+{
   "profiles": {
     "ExifName": {
-        "commandName": "Project",
-        "commandLineArgs": "rename --min 2000-01-01 --max 2025-05-01 --priority 0",
+      "commandName": "Project",
+      "commandLineArgs": "rename D:\\Temp\\копия\\11"
     }
   }
 }
