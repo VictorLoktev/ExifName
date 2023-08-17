@@ -59,12 +59,6 @@ namespace ExifName
 
             Regex rx = new Regex(FileMaskToRenameRegex, RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-            string guid = Guid.NewGuid().ToString("N");
-            string undoFile1 = Path.Combine(Path.GetTempPath(),
-                $"exifname undo {DateTime.Now:yyyy-MM-dd HH-mm-ss} {guid} run 1st.cmd");
-            string undoFile2 = Path.Combine(Path.GetTempPath(),
-                $"exifname undo {DateTime.Now:yyyy-MM-dd HH-mm-ss} {guid} run 2nd.cmd");
-
             List<ExifFileInfo> FileList = new List<ExifFileInfo>();
             string[] files = System.IO.Directory.GetFiles(workingDirectory, "*", SearchOption.TopDirectoryOnly);
             foreach (string file in files)
@@ -164,6 +158,7 @@ namespace ExifName
                         info.CameraMaker = pic0Exif.GetString(ExifDirectoryBase.TagMake);
                         info.CameraInternalSerialNumber = pic0Exif.GetString(ExifDirectoryBase.TagBodySerialNumber);
                         info.CameraOwner = pic0Exif.GetString(ExifDirectoryBase.TagCameraOwnerName);
+                        info.IsVideo = false;
                     }
 
                     #endregion
@@ -237,6 +232,66 @@ namespace ExifName
                         }
                     }
 
+                    #region Восстановление отсутствующих временных зон
+
+                    /*
+                     * Временные зоны (time zone) есть не у всех полей в EXIF,
+                     * поэтому в случае, когда время и дата в полях совпадают,
+                     * отсутствующие временные зоны полей полагаются равными тем,
+                     * которые в EXIF заданы.
+                     */
+                    if (!simpleTimeZone.HasValue &&
+                        originalTimeZone.HasValue &&
+                        simpleDateTime.HasValue &&
+                        originalDateTime.HasValue &&
+                        simpleDateTime == originalDateTime)
+                    {
+                        simpleTimeZone = originalTimeZone;
+                    }
+                    if (!simpleTimeZone.HasValue &&
+                        digitizedTimeZone.HasValue &&
+                        simpleDateTime.HasValue &&
+                        digitizedDateTime.HasValue &&
+                        simpleDateTime == digitizedDateTime)
+                    {
+                        simpleTimeZone = digitizedTimeZone;
+                    }
+
+                    if (!originalTimeZone.HasValue &&
+                        simpleTimeZone.HasValue &&
+                        simpleDateTime.HasValue &&
+                        originalDateTime.HasValue &&
+                        originalDateTime == simpleDateTime)
+                    {
+                        originalTimeZone = simpleTimeZone;
+                    }
+                    if (!originalTimeZone.HasValue &&
+                        digitizedTimeZone.HasValue &&
+                        originalDateTime.HasValue &&
+                        digitizedDateTime.HasValue &&
+                        originalDateTime == digitizedDateTime)
+                    {
+                        originalTimeZone = digitizedTimeZone;
+                    }
+
+                    if (!digitizedTimeZone.HasValue &&
+                        simpleTimeZone.HasValue &&
+                        simpleDateTime.HasValue &&
+                        digitizedDateTime.HasValue &&
+                        digitizedDateTime == simpleDateTime)
+                    {
+                        digitizedTimeZone = simpleTimeZone;
+                    }
+                    if (!digitizedTimeZone.HasValue &&
+                        originalTimeZone.HasValue &&
+                        originalDateTime.HasValue &&
+                        digitizedDateTime.HasValue &&
+                        digitizedDateTime == originalDateTime)
+                    {
+                        digitizedTimeZone = originalTimeZone;
+                    }
+
+                    #endregion
                     #region Выбор поля с датой и временем в соответствии с приоритетом
 
                     info.TimeOffset = TimeSpan.Zero;
@@ -256,6 +311,7 @@ namespace ExifName
                             info.PhotoDateTime = simpleDateTime;
                             info.TimeOffset = simpleTimeZone;
                         }
+
                         if (originalDateTime.HasValue &&
                             info.PhotoDateTime >= originalDateTime.Value &&
                             originalDateTime.Value >= options.MinDate &&
@@ -265,6 +321,7 @@ namespace ExifName
                             info.PhotoDateTime = originalDateTime;
                             info.TimeOffset = originalTimeZone;
                         }
+
                         if (digitizedDateTime.HasValue &&
                             info.PhotoDateTime >= digitizedDateTime.Value &&
                             digitizedDateTime.Value >= options.MinDate &&
@@ -274,8 +331,16 @@ namespace ExifName
                             info.PhotoDateTime = digitizedDateTime;
                             info.TimeOffset = digitizedTimeZone;
                         }
+
                         if (info.PhotoDateTime == DateTime.MaxValue)
+                        {
                             info.PhotoDateTime = null;
+                            info.TimeOffset = null;
+                        }
+                        else
+                        {
+                            info.TimeOffset ??= simpleTimeZone ?? originalTimeZone ?? digitizedTimeZone;
+                        }
                         break;
                     case 1:
                         // 1 - самая поздняя дата-время из полей
@@ -290,6 +355,7 @@ namespace ExifName
                             info.PhotoDateTime = simpleDateTime;
                             info.TimeOffset = simpleTimeZone;
                         }
+
                         if (originalDateTime.HasValue &&
                             info.PhotoDateTime <= originalDateTime.Value &&
                             originalDateTime.Value >= options.MinDate &&
@@ -299,6 +365,7 @@ namespace ExifName
                             info.PhotoDateTime = originalDateTime;
                             info.TimeOffset = originalTimeZone;
                         }
+
                         if (digitizedDateTime.HasValue &&
                             info.PhotoDateTime <= digitizedDateTime.Value &&
                             digitizedDateTime.Value >= options.MinDate &&
@@ -308,8 +375,16 @@ namespace ExifName
                             info.PhotoDateTime = digitizedDateTime;
                             info.TimeOffset = digitizedTimeZone;
                         }
+
                         if (info.PhotoDateTime == DateTime.MinValue)
+                        {
                             info.PhotoDateTime = null;
+                            info.TimeOffset = null;
+                        }
+                        else
+                        {
+                            info.TimeOffset ??= simpleTimeZone ?? originalTimeZone ?? digitizedTimeZone;
+                        }
                         break;
                     case 2:
                         // 2 - 'Date/Time' > 'Date/Time Original' > 'Date/Time Digitized'
@@ -340,6 +415,8 @@ namespace ExifName
                             info.PhotoDateTime = digitizedDateTime;
                             info.TimeOffset = digitizedTimeZone;
                         }
+                        if (info.PhotoDateTime.HasValue)
+                            info.TimeOffset ??= simpleTimeZone ?? originalTimeZone ?? digitizedTimeZone;
                         break;
                     case 3:
                         // 3 - 'Date/Time Digitized' > 'Date/Time Original' > 'Date/Time'
@@ -370,6 +447,8 @@ namespace ExifName
                             info.PhotoDateTime = simpleDateTime;
                             info.TimeOffset = simpleTimeZone;
                         }
+                        if (info.PhotoDateTime.HasValue)
+                            info.TimeOffset ??= simpleTimeZone ?? originalTimeZone ?? digitizedTimeZone;
                         break;
                     case 4:
                         // 4 - 'Date/Time Original' > 'Date/Time' > 'Date/Time Digitized'
@@ -400,6 +479,8 @@ namespace ExifName
                             info.PhotoDateTime = digitizedDateTime;
                             info.TimeOffset = digitizedTimeZone;
                         }
+                        if (info.PhotoDateTime.HasValue)
+                            info.TimeOffset ??= simpleTimeZone ?? originalTimeZone ?? digitizedTimeZone;
                         break;
                     case 5:
                         // 5 - 'Date/Time Original' > 'Date/Time Digitized' > 'Date/Time'
@@ -430,6 +511,8 @@ namespace ExifName
                             info.PhotoDateTime = simpleDateTime;
                             info.TimeOffset = simpleTimeZone;
                         }
+                        if (info.PhotoDateTime.HasValue)
+                            info.TimeOffset ??= simpleTimeZone ?? originalTimeZone ?? digitizedTimeZone;
                         break;
                     default:
                         throw new Exception("Задан неизвестный приоритет полей для даты и времени");
@@ -444,7 +527,7 @@ namespace ExifName
                         {
                             // Если EXIF в файле есть, то выдаем предупреждение
                             Console.Error.WriteLine(
-                                $"Файл '{info.NameWithoutExtention}{info.Extention}'\r\n" +
+                                $"EXIF в файле '{info.NameWithoutExtention}{info.Extention}'\r\n" +
                                 $"содержит даты вне допустимого диапазона " +
                                 $"{options.MinDate:dd.MM.yyyy} - {options.MaxDate:dd.MM.yyyy}:\r\n" +
                                 $"   '{simpleDateTime:dd.MM.yyyy HH:mm:ss}' Date/Time\r\n" +
@@ -530,15 +613,28 @@ namespace ExifName
 
             /*
              * Если config-файла нет или он пустой, делаем автоматические действия:
-             * Смотрим time zone всех фотографий (.jpg или .heic), если оно одинаковое,
-             * то задаем такой же time zone для всех видео.
+             * Смотрим time zone всех фотографий (.jpg или .heic),
+             * и если у всех фотографий time zone одинаковое,
+             * то устанавливаем этот time zone для всех видео,
+             * поскольку в видео-файлах время в GMT и time zone отсутствует.
              */
             if (Config.Items.Count == 0)
             {
                 bool sameZone = true;
                 TimeSpan? zone = null;
+                bool hasVideo = false;
+                bool hasPhoto = false;
                 foreach (var file in FileList)
                 {
+                    if (file.IsVideo == true)
+                    {
+                        hasVideo = true;
+                        continue;
+                    }
+                    if (file.IsVideo == false)
+                    {
+                        hasPhoto = true;
+                    }
                     if (file.TimeOffset.HasValue &&
                         file.TimeOffset.Value != TimeSpan.Zero &&
                         file.IsVideo == false)
@@ -550,7 +646,8 @@ namespace ExifName
                 }
                 if (sameZone && zone.HasValue)
                 {
-                    Console.Out.WriteLine($"Для видео задается автоматическая временная зона по фотографиям: {zone?.ToString("hh\\:mm")}");
+                    Console.Out.WriteLine($"Для видео автоматически устанавливается временная зона по фотографиям: " +
+                        $"{(zone.Value >= TimeSpan.Zero ? "+" : "")}{zone?.ToString("hh\\:mm")}");
 
                     foreach (var file in FileList)
                     {
@@ -564,6 +661,11 @@ namespace ExifName
                         }
                     }
                 }
+                else
+                if (hasVideo && hasPhoto)
+                {
+                    Console.Out.WriteLine("\r\nВНИМАНИЕ!  Для видео не устанавливается временная зона по фотографиям!\r\n");
+                }
             }
 
             #region Установка названия файла с учетом даты, времени и зоны
@@ -576,7 +678,7 @@ namespace ExifName
 
                 DateTime t = file.PhotoDateTime.Value;
                 int maxCounter = FileList.Count + 2;
-                while(maxCounter-->=0)
+                while (maxCounter-- >= 0)
                 {
                     /*
                      * Пытаемся перебором подобрать уникальное имя по дате и времени.
