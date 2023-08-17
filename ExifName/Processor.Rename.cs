@@ -235,6 +235,65 @@ namespace ExifName
                         }
                     }
 
+                    #region Восстановление отсутствующих временных зон
+
+                    /*
+                     * Временные зоны (time zone) есть не у всех полей в EXIF,
+                     * поэтому в случае, когда время и дата в полях совпадают,
+                     * отсутствующие временные зоны полей полагаются равными тем,
+                     * которые в EXIF заданы.
+                     */
+                    if (!simpleTimeZone.HasValue &&
+                        originalTimeZone.HasValue &&
+                        simpleDateTime.HasValue &&
+                        originalDateTime.HasValue &&
+                        simpleDateTime == originalDateTime)
+                    {
+                        simpleTimeZone = originalTimeZone;
+                    }
+                    if (!simpleTimeZone.HasValue &&
+                        digitizedTimeZone.HasValue &&
+                        simpleDateTime.HasValue &&
+                        digitizedDateTime.HasValue &&
+                        simpleDateTime == digitizedDateTime)
+                    {
+                        simpleTimeZone = digitizedTimeZone;
+                    }
+
+                    if (!originalTimeZone.HasValue &&
+                        simpleTimeZone.HasValue &&
+                        simpleDateTime.HasValue &&
+                        originalDateTime.HasValue &&
+                        originalDateTime == simpleDateTime)
+                    {
+                        originalTimeZone = simpleTimeZone;
+                    }
+                    if (!originalTimeZone.HasValue &&
+                        digitizedTimeZone.HasValue &&
+                        originalDateTime.HasValue &&
+                        digitizedDateTime.HasValue &&
+                        originalDateTime == digitizedDateTime)
+                    {
+                        originalTimeZone = digitizedTimeZone;
+                    }
+
+                    if (!digitizedTimeZone.HasValue &&
+                        simpleTimeZone.HasValue &&
+                        simpleDateTime.HasValue &&
+                        digitizedDateTime.HasValue &&
+                        digitizedDateTime == simpleDateTime)
+                    {
+                        digitizedTimeZone = simpleTimeZone;
+                    }
+                    if (!digitizedTimeZone.HasValue &&
+                        originalTimeZone.HasValue &&
+                        originalDateTime.HasValue &&
+                        digitizedDateTime.HasValue &&
+                        digitizedDateTime == originalDateTime)
+                    {
+                        digitizedTimeZone = originalTimeZone;
+                    }
+
                     #region Восстановление отсутствующих часовых поясов в полях даты и времени съемки
 
                     /*
