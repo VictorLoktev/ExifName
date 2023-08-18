@@ -1,4 +1,6 @@
-﻿using System.Text;
+﻿using System;
+using System.Reflection;
+using System.Text;
 using System.Text.RegularExpressions;
 using MetadataExtractor;
 using MetadataExtractor.Formats.Exif;
@@ -200,11 +202,12 @@ namespace ExifName
                                     case "m4v":
                                         //currentOffset = TimeZone.CurrentTimeZone.GetUtcOffset( DateTime.Now );
                                         /*
-                                         * Для данного типа видео в файл время съемки пишется в зоне GMT.
-                                         * Либо должен быть конфигурационный файл с установленным смещением по временной зоне
-                                         * либо должны быть фотографии в папке, тогда по зоне из них будет делаться смещение для видео.
-                                         * Если нет ни того, ни другого, смещение задается зоной по дате из файла, когда файл
-                                         * переписывается с камеры/телефона на диск ПК, обычно это зона на ПК в момент копирования файла.
+                                         * Для данного типа видео в файл время съемки пишется в часовом поясе UTC.
+                                         * Либо должен быть конфигурационный файл с установленным часовым поясом,
+                                         * либо должны быть фотографии в папке, тогда по часовому поясу будет делаться смещение для видео.
+                                         * Если нет ни того, ни другого, часовой пояс задается по дате из файла, когда файл
+                                         * переписывается с камеры/телефона на диск ПК, обычно это тот же часовой пояс,
+                                         * что установлен на ПК в момент копирования файла.
                                          */
                                         FileInfo fInfo = new FileInfo(file);
                                         DateTime d1 = fInfo.LastWriteTimeUtc;
@@ -232,12 +235,12 @@ namespace ExifName
                         }
                     }
 
-                    #region Восстановление отсутствующих временных зон
+                    #region Восстановление отсутствующих часовых поясов в полях даты и времени съемки
 
                     /*
-                     * Временные зоны (time zone) есть не у всех полей в EXIF,
+                     * Часовые пояса (time zone) есть не у всех полей в EXIF,
                      * поэтому в случае, когда время и дата в полях совпадают,
-                     * отсутствующие временные зоны полей полагаются равными тем,
+                     * отсутствующие часовые пояса полей полагаются равными тем,
                      * которые в EXIF заданы.
                      */
                     if (!simpleTimeZone.HasValue &&
@@ -578,15 +581,6 @@ namespace ExifName
                         {
                             info.NameDescription = m.Groups[ "comment" ]?.Value;
                         }
-                        //else
-                        //{
-                        //	// Установить дату и время файла из Exif
-                        //	FileInfo fInfo = new FileInfo( Path.Combine( srcDir, info.OriginalName ) );
-                        //	File.SetCreationTime( fInfo.FullName, info.PhotoDateTime );
-                        //	File.SetLastWriteTime( fInfo.FullName, info.PhotoDateTime );
-                        //	// и не переименовывать
-                        //	info = null;
-                        //}
                     }
 
                     #endregion
@@ -616,10 +610,21 @@ namespace ExifName
              * Смотрим time zone всех фотографий (.jpg или .heic),
              * и если у всех фотографий time zone одинаковое,
              * то устанавливаем этот time zone для всех видео,
-             * поскольку в видео-файлах время в GMT и time zone отсутствует.
+             * поскольку в видео-файлах время в UTC и часовой пояс отсутствует.
              */
             if (Config.Items.Count == 0)
             {
+                /*
+                 * Идея такая: из всех фотографий, где есть часовой пояс (time zone),
+                 * выстраиваем упорядоченный список по времени съемки,
+                 * к каждому времени съемки прицепляем часовой пояс из фото.
+                 * Потом для каждого видео, берем его время съемки и ищем
+                 * в сортированном списке ближайшее по времени съемки
+                 * фото - предыдущее и последующее, в каждом из них есть часовой пояс.
+                 * Если часовые пояса различаются (ну вдруг), то берем ту, которая
+                 * привязана к ближайшему времени съемки фото ко времени съемки видео.
+                 */
+                SortedList<DateTime, TimeSpan> sortedTimeZoneInfo = new SortedList<DateTime, TimeSpan>();
                 bool sameZone = true;
                 TimeSpan? zone = null;
                 bool hasVideo = false;
@@ -635,10 +640,13 @@ namespace ExifName
                     {
                         hasPhoto = true;
                     }
-                    if (file.TimeOffset.HasValue &&
+                    if (file.PhotoDateTime.HasValue &&
+                        file.TimeOffset.HasValue &&
                         file.TimeOffset.Value != TimeSpan.Zero &&
                         file.IsVideo == false)
                     {
+                        // Ключ словаря должен составлять время съемки в часовом поясе UTC
+                        sortedTimeZoneInfo.Add(file.PhotoDateTime.Value - file.TimeOffset.Value, file.TimeOffset.Value);
                         if (zone == null)
                             zone = file.TimeOffset;
                         sameZone &= zone == file.TimeOffset;
@@ -646,29 +654,120 @@ namespace ExifName
                 }
                 if (sameZone && zone.HasValue)
                 {
-                    Console.Out.WriteLine($"Для видео автоматически устанавливается временная зона по фотографиям: " +
-                        $"{(zone.Value >= TimeSpan.Zero ? "+" : "")}{zone?.ToString("hh\\:mm")}");
+                    Console.Out.WriteLine(
+                        $"Все фотографии в одном часовом поясе " +
+                        $"{(zone.Value >= TimeSpan.Zero ? "+" : "")}{zone?.ToString("hh\\:mm")}.\r\n" +
+                        $"Для видео автоматически устанавливается часовой пояс по фотографиям.");
 
                     foreach (var file in FileList)
                     {
-                        if (file.PhotoDateTime.HasValue && zone.HasValue)
+                        if (file.IsVideo == true &&
+                            file.PhotoDateTime.HasValue &&
+                            zone.HasValue)
                         {
                             // Для фото значение будет таким же, как было,
-                            // для видео будет сдвиг от GMT к зоне из фото.
+                            // для видео будет сдвиг от UTC к часовому поясу из фото.
                             file.PhotoDateTime = file.PhotoDateTime.Value + zone.Value - file.TimeOffset;
-                            // Установка зоны для файла
+                            // Установка часового пояса для файла
                             file.TimeOffset = zone.Value;
+                        }
+                    }
+                }
+                else
+                if (sortedTimeZoneInfo.Count > 0)
+                {
+                    Console.Out.WriteLine(
+                        $"Фотографии в разных часовых поясах. Для каждого видео автоматически\r\n" +
+                        $"устанавливается часовой пояс из ближайшей по времени съемки фотографии.");
+
+                    foreach (var file in FileList)
+                    {
+                        if (file.IsVideo == true &&
+                            file.PhotoDateTime.HasValue &&
+                            zone.HasValue)
+                        {
+                            #region Поиск ближайшего методом деления отрезка пополам
+
+                            // Время съемки видео также надо привести к UTC
+                            DateTime aim = file.PhotoDateTime.Value - (file.TimeOffset ?? TimeSpan.Zero);
+                            int minIndex = 0;
+                            int maxIndex = sortedTimeZoneInfo.Count - 1;
+
+                            // Проверка, что видео не находится раньше первой фотографии или позже последней,
+                            // в таком случае не нужен цикл поиска
+                            DateTime minVal = sortedTimeZoneInfo.GetKeyAtIndex(minIndex);
+                            DateTime maxVal = sortedTimeZoneInfo.GetKeyAtIndex(maxIndex);
+                            if (aim < minVal)
+                                maxIndex = minIndex;
+                            if (aim > maxVal)
+                                minIndex = maxIndex;
+
+                            while (minIndex + 1 < maxIndex)
+                            {
+                                int index = (minIndex + maxIndex) / 2;
+                                if (index < minIndex)
+                                    index = minIndex;
+                                if (index > maxIndex)
+                                    index = maxIndex;
+
+                                DateTime midVal = sortedTimeZoneInfo.GetKeyAtIndex(index);
+
+                                if (midVal > aim)
+                                {
+                                    maxIndex = index;
+                                }
+                                else
+                                if (midVal < aim)
+                                {
+                                    minIndex = index;
+                                }
+                                else
+                                {
+                                    // Удивительно, но мы точно попали в дату и время
+                                    TimeSpan targetZone = sortedTimeZoneInfo.GetValueAtIndex(index);
+                                    file.PhotoDateTime = aim + targetZone;
+                                    file.TimeOffset = targetZone;
+                                    break;
+                                }
+                            }
+
+                            // Если в списке всего одна фотография или интервал сократился
+                            // до одного единственного элемента, например в ситуации, когда
+                            // видео самое первое или самое последнее,
+                            // берем часовой пояс из единственной фотографии.
+                            if (minIndex == maxIndex)
+                            {
+                                TimeSpan targetZone = sortedTimeZoneInfo.GetValueAtIndex(minIndex);
+                                file.PhotoDateTime = aim + targetZone;
+                                file.TimeOffset = targetZone;
+                            }
+                            else
+                            {
+                                // Берем часовой пояс от той фотографии,
+                                // время съемки которой ближе к съемке видео
+                                minVal = sortedTimeZoneInfo.GetKeyAtIndex(minIndex);
+                                maxVal = sortedTimeZoneInfo.GetKeyAtIndex(maxIndex);
+
+                                TimeSpan targetZone =
+                                    Math.Abs(aim.Ticks - minVal.Ticks) < Math.Abs(maxVal.Ticks - aim.Ticks)
+                                    ? sortedTimeZoneInfo.GetValueAtIndex(minIndex)
+                                    : sortedTimeZoneInfo.GetValueAtIndex(maxIndex);
+                                file.PhotoDateTime = aim + targetZone;
+                                file.TimeOffset = targetZone;
+                            }
+
+                            #endregion
                         }
                     }
                 }
                 else
                 if (hasVideo && hasPhoto)
                 {
-                    Console.Out.WriteLine("\r\nВНИМАНИЕ!  Для видео не устанавливается временная зона по фотографиям!\r\n");
+                    Console.Out.WriteLine("\r\nВНИМАНИЕ!  Для видео не устанавливается часовой пояс по фотографиям!\r\n");
                 }
             }
 
-            #region Установка названия файла с учетом даты, времени и зоны
+            #region Установка названия файла с учетом даты, времени и часового пояса
 
             for (int index = 0; index < FileList.Count; index++)
             {
