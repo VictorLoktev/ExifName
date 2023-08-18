@@ -645,8 +645,10 @@ namespace ExifName
                         file.TimeOffset.Value != TimeSpan.Zero &&
                         file.IsVideo == false)
                     {
-                        // Ключ словаря должен составлять время съемки в часовом поясе UTC
-                        sortedTimeZoneInfo.Add(file.PhotoDateTime.Value - file.TimeOffset.Value, file.TimeOffset.Value);
+                        // Ключ словаря должен составлять время съемки в часовом поясе UTC.
+                        // Исключаем ситуацию с ошибкой, когда две фотографии имеют одинаковое время съемки.
+                        sortedTimeZoneInfo[ file.PhotoDateTime.Value - file.TimeOffset.Value ] = file.TimeOffset.Value;
+
                         if (zone == null)
                             zone = file.TimeOffset;
                         sameZone &= zone == file.TimeOffset;
